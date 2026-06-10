@@ -30,24 +30,23 @@ const local = {
   }
 }
 
-// Firestore interdit ':' '/' '.' '#' '$' '[' ']' dans les IDs de doc.
-// On encode/décode pour garder la clé d'origine côté app.
-const ENC = (k) => k.replace(/:/g,'__').replace(/[\/\.\#\$\[\]]/g,'_')
-const DEC = (k) => k.replace(/__/g, ':')
+// Firestore accepte ':' dans les IDs de docs (testé) mais pas '/' '.' '#' '$' '[' ']'.
+// On garde donc les IDs identiques à la clé d'origine.
+const SAFE = (k) => k.replace(/[\/\.\#\$\[\]]/g,'_')
 
 export const isShared = !!db
 
 export async function sGet(key){
   if(!db) return local.get(key)
   try {
-    const snap = await getDoc(doc(db, 'cdp26', ENC(key)))
+    const snap = await getDoc(doc(db, 'cdp26', SAFE(key)))
     return snap.exists() ? snap.data().value : null
   } catch(e){ console.warn('sGet fallback', e); return local.get(key) }
 }
 export async function sSet(key, value){
   local.set(key, value)
   if(!db) return
-  try { await setDoc(doc(db, 'cdp26', ENC(key)), { value, updatedAt: Date.now() }) }
+  try { await setDoc(doc(db, 'cdp26', SAFE(key)), { value, updatedAt: Date.now() }) }
   catch(e){ console.warn('sSet fallback', e) }
 }
 export async function listPlayerKeys(){
@@ -56,8 +55,7 @@ export async function listPlayerKeys(){
     const snap = await getDocs(collection(db, 'cdp26'))
     const keys = []
     snap.forEach(d => {
-      const decoded = DEC(d.id)
-      if(decoded.startsWith('p1:')) keys.push(decoded)
+      if(d.id.startsWith('p1:')) keys.push(d.id)
     })
     return keys
   } catch(e){ console.warn('list fallback', e); return local.list('p1:') }
